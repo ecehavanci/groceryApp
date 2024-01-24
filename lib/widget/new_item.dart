@@ -5,6 +5,8 @@ import 'package:shopping_app/data/categories.dart';
 import 'package:shopping_app/model/category.dart';
 import 'package:http/http.dart' as http;
 
+import '../model/grocery_item.dart';
+
 class NewItem extends StatefulWidget {
   const NewItem({super.key});
 
@@ -17,6 +19,8 @@ class _NewItemState extends State<NewItem> {
   String _enteredName = '';
   int _enteredQuantity = 1;
   var _selectedCategory = categories[Categories.vegetables];
+  bool _isSending = false;
+  String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -110,9 +114,16 @@ class _NewItemState extends State<NewItem> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  TextButton(onPressed: _reset, child: const Text("Reset")),
+                  TextButton(
+                      onPressed: _isSending ? null : _reset,
+                      child: const Text("Reset")),
                   ElevatedButton(
-                      onPressed: _saveItem, child: const Text("Add Item"))
+                      onPressed: _isSending ? null : _saveItem,
+                      child: _isSending
+                          ? const SizedBox(
+                              child: CircularProgressIndicator(),
+                            )
+                          : const Text("Add Item"))
                 ],
               )
             ],
@@ -131,6 +142,10 @@ class _NewItemState extends State<NewItem> {
     if (isValidated) {
       _formKey.currentState!.save();
 
+      setState(() {
+        _isSending = true;
+      });
+
       final url = Uri.https(
           "shoppinglist-27c60-default-rtdb.firebaseio.com", "list.json");
       final response = await http.post(
@@ -146,12 +161,23 @@ class _NewItemState extends State<NewItem> {
       );
 
       print(response.body);
-
       print(response.statusCode);
+      if (response.statusCode >= 400) {
+        error = "Failed to fetch data please try again.";
+      }
+
       if (!context.mounted) {
         return;
       }
-      Navigator.of(context).pop();
+
+      final addedItem = json.decode(
+          response.body); //to not send request to relist again on grocery list
+      Navigator.of(context).pop(GroceryItem(
+        id: addedItem["name"],
+        name: _enteredName,
+        quantity: _enteredQuantity,
+        category: _selectedCategory!,
+      ));
     }
   }
 }
